@@ -149,7 +149,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="https://blog.feakin.com/2022/09/16/hello-world/">
+    <link itemprop="mainEntityOfPage" href="https://blog.feakin.com/2022/09/16/crdt-with-graph/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -163,7 +163,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/09/16/hello-world/" class="post-title-link" itemprop="url">Hello World</a>
+            <a href="/2022/09/16/crdt-with-graph/" class="post-title-link" itemprop="url">CRDT 在 Feakin 中的应用</a>
         </h2>
 
         <div class="post-meta">
@@ -172,8 +172,9 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">Posted on</span>
+              
 
-              <time title="Created: 2022-09-16 14:47:29" itemprop="dateCreated datePublished" datetime="2022-09-16T14:47:29+00:00">2022-09-16</time>
+              <time title="Created: 2022-09-16 22:50:20 / Modified: 14:51:11" itemprop="dateCreated datePublished" datetime="2022-09-16T22:50:20+00:00">2022-09-16</time>
             </span>
 
           
@@ -187,19 +188,523 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Welcome to <a target="_blank" rel="noopener" href="https://hexo.io/">Hexo</a>! This is your very first post. Check <a target="_blank" rel="noopener" href="https://hexo.io/docs/">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a target="_blank" rel="noopener" href="https://hexo.io/docs/troubleshooting.html">troubleshooting</a> or you can ask me on <a target="_blank" rel="noopener" href="https://github.com/hexojs/hexo/issues">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">&quot;My New Post&quot;</span></span><br></pre></td></tr></table></figure>
+          <p>与常规的在线可视化协作相比较，对于 Feakin 这一类的图即代码的绘图工具来说，其在线协作可以直接简化为三个元素：</p>
+<ul>
+<li>在线：通讯协议与数据格式</li>
+<li>协作：中心化还是去中心化？</li>
+<li>编辑：多端 CRDT与编辑器集成</li>
+</ul>
+<p>从技术的层面来说，这些问题并不复杂，只是熟悉概念需要一个过程。但是呢，「中心化还是去中心化」这个问题非常有意思，毕竟从 Web 3.0 的韭菜热度来看，未来人们更想到<strong>去中心化</strong>的世界。</p>
+<p>PS：在线绘图 Demo：<a target="_blank" rel="noopener" href="https://online.feakin.com/">https://online.feakin.com/</a> ，可以通过复制 Room ID 给其他人来实现协作。服务器部署在 Heroku 上，代码见：<a target="_blank" rel="noopener" href="https://github.com/feakin/feakin/">https://github.com/feakin/feakin/</a> 。</p>
+<h2 id="在线：通讯协议"><a href="#在线：通讯协议" class="headerlink" title="在线：通讯协议"></a>在线：通讯协议</h2><p>在线协作，意味着实时性，依赖于构建持续的长连接。关于如何构建这种连接的过程与方式，在不同的场景下，它被总结为不同的通讯协议，诸如于在 IoT 领域流行的 MQTT、CoAP、LWM2M 等。</p>
+<h3 id="通讯协议：WebSocket-vs-HTTP"><a href="#通讯协议：WebSocket-vs-HTTP" class="headerlink" title="通讯协议：WebSocket vs HTTP"></a>通讯协议：WebSocket vs HTTP</h3><p>回到，如何保持在线协议这个问题，在浏览器端，基本上不就是无脑 WebSocket 嘛，学习门槛最低。</p>
+<p>不过呢，在探索的过程中，有一个社区发起的同步 HTTP 协议 <a target="_blank" rel="noopener" href="https://braid.org/">Braid Protocol</a>，引用了我的兴趣。它自定义了一个 209  <a target="_blank" rel="noopener" href="https://github.com/braid-org/braid-spec/issues/106">Subscriptions</a> 状态码，使用 HTTP 长连接来接受更新，使用 HTTP Patch 来更新 patch。从语义上来说，Patch 操作确实很适合于这个场景。在有了这一类的状态同步协议，那么使用 HTTP 也可以实现 P2P 网络。不过，其主要用途还是用于使 Web 资源能够在多个客户端、服务器和代理之间<strong>自动同步</strong>，并支持多个编写者在任意网络延迟和分区下进行任意同时编辑，同时使用 OT、CRDT 或其他算法保证一致性。</p>
+<p>简单来说，协议的初衷就是<strong>为协作而设计的</strong>。作为一个早期阶段的协议，自然是没有多大胆量采用。不过，试了试官方的 Demo，在 Firefox 和 Chrome 浏览器上都可以工作，Chrome 浏览器还显示了自定义的 Header。</p>
+<h3 id="数据格式：JSON-vs-Binary"><a href="#数据格式：JSON-vs-Binary" class="headerlink" title="数据格式：JSON vs Binary"></a>数据格式：JSON vs Binary</h3><p>随后，在协作的过程中，会产生大量的数据，我们也需要定义好数据。从当前的研究来看，主流采用的都是二进制的形式，从性能上来更优。</p>
+<p>不过，在当前的 Feakin 版本里，为了调试方便（主要是没有 E2E 测试），采用的就是 JSON 形式的数据格式，未来已经切到二进制文档。最后在 Feakin 里，我们使用了 Actix + WebSocket 来实现这个功能。从实现上还是有点 trick，官方的 demo 实现的时候有点奇怪。基本的数据结构如下：</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]</span></span><br><span class="line"><span class="meta">#[serde(tag = <span class="string">&quot;type&quot;</span>, content = <span class="string">&quot;value&quot;</span>)]</span></span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">enum</span> <span class="title class_">ActionType</span> &#123;</span><br><span class="line">  <span class="title function_ invoke__">CreateRoom</span>(CreateRoom),</span><br><span class="line">  <span class="title function_ invoke__">JoinRoom</span>(JoinRoom),</span><br><span class="line">  <span class="title function_ invoke__">LeaveRoom</span>(LeaveRoom),</span><br><span class="line"></span><br><span class="line">  <span class="comment">// patches</span></span><br><span class="line">  <span class="title function_ invoke__">UpdateByVersion</span>(UpdateByVersion),</span><br><span class="line">  <span class="title function_ invoke__">OpsByPatches</span>(OpsByPatches),</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/writing.html">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
+<p>感谢 Rust 神奇的 Enum 类型，简化了我的复制和粘贴。不过，从命名的角度来说，依旧有很大的改善空间。</p>
+<h2 id="协作算法：中心化还是去中心化？"><a href="#协作算法：中心化还是去中心化？" class="headerlink" title="协作算法：中心化还是去中心化？"></a>协作算法：中心化还是去中心化？</h2><p>接着，让我们再回到核心问题上。</p>
+<p>多人协作本质就是一个分布式系统中的一致性问题。在我们协作的过程中，自然会出现各种的冲突：当 A 修改了文档，这个变更会在本地保存，并异步复制给其他正在编辑此文档的用户。而当 A 在修改标题时，B 也在修改时，此时就会造成冲突。应对于冲突的产生，有不同的方案，诸如于一种简单的方案是在此时将 title 锁定住，不让其他人修改；还可以是 Last-write-wins 策略，即谁最后写入就用谁的。</p>
+<p>大量的分布式系统相关的问题，都可以在数据库相关领域的书籍中看到，诸如于《数据密集型应用系统设计》、《数据库系统内幕》。对于我来说，有一些概念，我也是从中现学现用的。不过，如果你要是有兴趣，也可以从开发 Feakin 的过程中学到更多。</p>
+<h3 id="OT-算法-vs-CRDT"><a href="#OT-算法-vs-CRDT" class="headerlink" title="OT 算法 vs CRDT"></a>OT 算法 vs CRDT</h3><p>在协作上，当前基本上主流的就是两个流派：</p>
+<ul>
+<li>中心化。客户端需要一直保持与服务器的连接，一旦离线了，那么就无法协作。代表是 OT ，核心部分是：管理转换过程的通用控制算法、 执行操作的转换函数，为此这里的操作需要细化到<strong>原子操作</strong>。</li>
+<li>去中心化。客户端允许短暂的离线，并在恢复后同步，还允许没有服务端的存在。代表是 CRDT ，一种简化分布式数据存储系统和多用户应用程序的数据结构。主要可用于跨设备同步（如 Apple Notes）、分布式数据库、协作软件、大规模数据存储和处理系统等。</li>
+</ul>
+<p>这也是从顶层设计上， OT 与 CRDT 的巨大差异之处。另外一些差异在于 OT 更多的是针对于文本数据，而 CRDT 则可以针对于文本、任意 JSON 数据。这也就是为什么大量的分布式数据库，诸如于 Redis、Riak 会使用它的原因。</p>
+<p><strong>OT</strong></p>
+<p>从名称上来说，OT（Operational Transform，操作转换） 主要基于操作的，客户端生成操作，再将由服务端处理，服务端处理完，推给其他客户端。根据不同的场景，可以支持不同的操作，如 CKEditor 中的：Insert、Delete、Split、Merge 等。</p>
+<p>服务端是整个 OT 的核心所在，而客户端在接收到更新的请求后，也需要具备和服务端相同的合并代码。既然如此，那么我们为什么不做成去中心化的呢？</p>
+<p><strong>CRDT</strong></p>
+<p>从名称上来说，(Conflict-Free Replicated data types<strong>，</strong>无冲突复制数据类型) 主要是基于状态的，CRDT 的思路是尽可能避免冲突，如此一来，我们就不需要解决冲突。在发生变更时，就生成 patch，发送到其他端，如服务器、客户端等。当我们使用 CRDT 进行文本协作时，每一个字符视为一个实体。</p>
+<p>当我们在客户端编辑的时候，可以生成一个 patch，这个 patch 可以由其他端进行 merge，诸如于客户端：<code>self.inner.decode_and_add(&amp;patches)</code>，又或者是客户端的：<code>doc.mergeBytes(bytes)</code>。</p>
+<hr>
+<p>从结论说起， OT 设计起来很简单，实现想来复杂，但是在极端场景下很复杂。而 CRDT 则是在设计阶段很复杂，除非能设计一个理想的<strong>数据模型</strong>，否则在需求不断变化的情况下，模型就成了一个问题。诸如于，针对富文本的属性（attribute）这一点上，与纯文本存在巨大的差异。这也就是富文本与纯代码实现的差异，诸如于如 CKEditor 的作者在「<a target="_blank" rel="noopener" href="https://ckeditor.com/blog/Lessons-learned-from-creating-a-rich-text-editor-with-real-time-collaboration/">Lessons learned from creating a rich-text editor with real-time collaboration</a>)」一文中所说，OT 具有更好的可扩展性 —— 因为不需要更多的预先设计，可以很方便地添加一些操作，诸如于重命名、插件等。</p>
+<p>在此这里，我还没有仔细研究各类 CRDT 实现的差异，这些差异点的分析，留给未来写数据库的时候来实现。如果你对 CRDT 有兴趣，可以看这个视频：<a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=x7drE24geUw">CRDTs: The Hard Parts</a>。</p>
+<h3 id="歪个楼：回顾一下-Git-的基本概念"><a href="#歪个楼：回顾一下-Git-的基本概念" class="headerlink" title="歪个楼：回顾一下 Git 的基本概念"></a>歪个楼：回顾一下 Git 的基本概念</h3><p>从设计理念上来说，Git  也是一款针对于分布式设计的 “数据库管理” 工具：结合 SHA-1 哈希值来进行对象库（object database）的管理，并通过 <code>refs</code>、<code>HEAD</code>、<code>index</code> 等几个要素来构建其底层世界。</p>
+<p>OT&#x2F;CRDT  等在实现上与 Git 极为相似，只是 OT&#x2F;CRDT 更像是一种实时的 Git-Rebase，获得 patch，自动就 rebase。除此在使用上，我们也并不会像 CRDT 一样使用 Git —— 为了保存这种最终强一致性：变更一个字符，便同步一次；删除一个字符，又同步一次。如果我们在真实的项目中，写入一个字符更 commit 一次，push 一次，虽然基本上不会产生冲突，但是我们的流水线大概率  99% 的时间都是挂的。</p>
+<p>而我们的 ”编辑器&#x2F;IDE” 则会实现写入一个字符更 “提交&#x2F;触发” 变更，以便提供更智能的编辑服务。</p>
+<h3 id="协作技术选型：Rust-与-Diamond-type"><a href="#协作技术选型：Rust-与-Diamond-type" class="headerlink" title="协作技术选型：Rust 与 Diamond-type"></a>协作技术选型：Rust 与 Diamond-type</h3><p>从成熟度来看，OT 显然是一种更成熟的方案，但是 CRDT 是一种更有前景的方案 —— 又学到了一种没有用的屠龙术。</p>
+<p><strong>Rust</strong></p>
+<p>为什么都是 Rust 语言呢？<del>因为我基本上只会在工作的时候使用 Java</del>，在去中心化的场景下，一种能跨端、系统、设备的语言必然是一种更好的选择。任何能够用 Rust 实现的应用系统，最终都必将用 Rust 实现。</p>
+<p><strong>Rust CRDT</strong></p>
+<p>在 CRDT 的技术选型上，有一系列的成熟选择：</p>
+<ul>
+<li>基于 Rust 语言的 <a target="_blank" rel="noopener" href="https://github.com/automerge/automerge-rs">Automerge RS</a> 提供了全方面的解决方案：服务器、浏览器端（WASM）、浏览器（JS） 等。</li>
+<li>基于 Rust 语言与 Y.js 成熟经验的 <a target="_blank" rel="noopener" href="https://github.com/y-crdt/y-crdt">Y CRDT</a> 是一个更靠谱的方案。</li>
+<li>基于 Rust 语言但是性能更好的 <strong><a target="_blank" rel="noopener" href="https://github.com/josephg/diamond-types">Diamond-type</a> ，</strong>其作者原来是 Google Wave 开发者，外加 ShareJS、ShareDB 的创始人。</li>
+</ul>
+<p>最后，我们选择的是 <a target="_blank" rel="noopener" href="https://github.com/josephg/diamond-types">Diamond-type</a>，虽然它 API 不完全，可能会带来更多的问题。但是，正经、成熟的方案谁在工作之后用啊。这种特别容易带来 error 的代码库，总会让你去想着，我要再造一个更好的轮子。</p>
+<p>Tips：与采用代码相应的库相比，还有一种作法是通过数据库来解决，诸如于 <a target="_blank" rel="noopener" href="https://github.com/share/sharedb/">ShareDB</a>，不过它当前只支持 OT。在底层内建于对 CRDT 与协作的支持，会降低我们的开发成本。</p>
+<h2 id="编辑：多端-CRDT-与编辑器集成"><a href="#编辑：多端-CRDT-与编辑器集成" class="headerlink" title="编辑：多端 CRDT 与编辑器集成"></a>编辑：多端 CRDT 与编辑器集成</h2><p>在选用了 Rust 作为 CRDT 的语言之后，我们就自然可以很好利用 Rust 语言的跨平台特性，将它编译为 WASM。如此一来，在浏览器端与服务端中，我们就可以使用同样的 CRDT API。</p>
+<p>所以，剩下的工作就是日常的搬砖。</p>
+<h3 id="服务端：Actix-Diamond-Types-CRDT"><a href="#服务端：Actix-Diamond-Types-CRDT" class="headerlink" title="服务端：Actix + Diamond Types + CRDT"></a>服务端：Actix + Diamond Types + CRDT</h3><p>对于服务端来说，它本身其实也是个客户端，只需要接受客户端生成的 patch 即可，在合并了 patch 之后，将它广播出去即可：</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">before_version</span> = live.<span class="title function_ invoke__">lock</span>().<span class="title function_ invoke__">unwrap</span>().<span class="title function_ invoke__">version</span>();</span><br><span class="line">after_version = <span class="keyword">self</span>.<span class="title function_ invoke__">ops_by_patches</span>(agent_name, patches).<span class="keyword">await</span>;</span><br><span class="line"><span class="comment">// or let after_version = self.insert(content, pos).await;</span></span><br><span class="line"><span class="comment">// or after_version = self.delete(range).await;</span></span><br><span class="line"><span class="keyword">let</span> <span class="variable">patch</span> = coding.<span class="title function_ invoke__">patch_since</span>(&amp;before_version);</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/server.html">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
+<p>Feakin，当前版本在这里，除了支持 patch，还可以同时支持 ins、del 这样的操。核心的代码就这么几行，剩下的代码都是 CRUD，没啥好玩的。</p>
+<h3 id="客户端：编辑生成-patches"><a href="#客户端：编辑生成-patches" class="headerlink" title="客户端：编辑生成 patches"></a>客户端：编辑生成 patches</h3><p>从结果代码来说，这部分相当的简单：：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> localVersion = doc.<span class="title function_">getLocalVersion</span>();</span><br><span class="line">event.<span class="property">changes</span>.<span class="title function_">sort</span>(<span class="function">(<span class="params">change1, change2</span>) =&gt;</span> change2.<span class="property">rangeOffset</span> - change1.<span class="property">rangeOffset</span>).<span class="title function_">forEach</span>(<span class="function"><span class="params">change</span> =&gt;</span> &#123;</span><br><span class="line">  doc.<span class="title function_">ins</span>(change.<span class="property">rangeOffset</span>, change.<span class="property">text</span>);</span><br><span class="line">  doc.<span class="title function_">del</span>(change.<span class="property">rangeOffset</span>, change.<span class="property">rangeLength</span>);</span><br><span class="line">&#125;)</span><br><span class="line"><span class="keyword">let</span> patch = doc.<span class="title function_">getPatchSince</span>(localVersion);</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/generating.html">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
+<p>由于在前端中 Feakin 采用的是 monaco 的实现，需要在发生变更时，执行 <code>ins</code> 和 <code>del</code> 等，以生成 patch。</p>
+<h3 id="客户端：编辑器应用-patches"><a href="#客户端：编辑器应用-patches" class="headerlink" title="客户端：编辑器应用 patches"></a>客户端：编辑器应用 patches</h3><p>对于客户端来说，接受 patch 并应用也不复杂，然而我被坑了一晚上（被坑在了如何动态更新 Monaco 的模型上）：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> merge_version = doc.<span class="title function_">mergeBytes</span>(bytes)</span><br><span class="line">doc.<span class="title function_">mergeVersions</span>(doc.<span class="title function_">getLocalVersion</span>(), merge_version);</span><br><span class="line"></span><br><span class="line"><span class="keyword">let</span> <span class="attr">xfSinces</span>: <span class="title class_">DTOperation</span>[] = doc.<span class="title function_">xfSince</span>(patchInfo.<span class="property">before</span>);</span><br><span class="line">xfSinces.<span class="title function_">forEach</span>(<span class="function">(<span class="params">op</span>) =&gt;</span> &#123;</span><br><span class="line">   ...</span><br><span class="line">&#125;);        </span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/one-command-deployment.html">Deployment</a></p>
+<p>唯一比较麻烦的点在于，当我们接受了 patch 之后，还需要把变更同步给编辑器。诸如于，我们接受了在 12 位置插入 a 字符，编辑器需要去插入这个 a。同时，在这个短暂的瞬间，我们还需要把编辑器锁住。</p>
+<p>TIP：顺带一提，<a target="_blank" rel="noopener" href="https://github.com/yjs">yjs</a> 提供了不同编辑器的支持，可以在开发时，参考一下如何使用编辑器的 API —— 只要是 Monaco Editor 的 API 文档，一言难尽。</p>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>最后，我们再回顾一下我们所需要的三个元素：</p>
+<ul>
+<li>在线。如何选择合适的通讯协议和数据格式？</li>
+<li>协作。如何基于 CRDT 构建去中心化的协作？</li>
+<li>编辑。如何实现多端同步与编辑？</li>
+</ul>
+<p>在这里，虽然我们简单完成了 Feakin 的在线协作，但是我们依旧有一系列的东西可以玩：</p>
+<ul>
+<li>编码与解码优化。JSON 的序列化与反序列化会带来性能问题。</li>
+<li>完善协作形态。诸如于 Cursor 的显示等。</li>
+<li>异常场景处理。尚未处理各种异常状态</li>
+</ul>
+<p>除此呢，下一步，我们应该如何有结地结合在线协作与图即代码？诸如于：</p>
+<ul>
+<li>基于代码化的在线 DDD 协作设计</li>
+<li>基于代码化的架构图绘制</li>
+</ul>
+<p>如果你对这些有兴趣，也欢迎来联系我们，加入 Feakin 的开发。</p>
+<p>参考资源：</p>
+<ul>
+<li>《<a target="_blank" rel="noopener" href="https://josephg.com/blog/crdts-are-the-future/">I was wrong. CRDTs are the future</a>》</li>
+<li>《<a target="_blank" rel="noopener" href="https://josephg.com/blog/crdts-go-brrr/">5000x faster CRDTs: An Adventure in Optimization</a>》</li>
+<li><a target="_blank" rel="noopener" href="https://crdt.tech/">https://crdt.tech/</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/yjs/y-monaco">https://github.com/yjs/y-monaco</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/feakin/awesome-frontend-graph-library">Awesome Opensource Graph Library</a></li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://blog.feakin.com/2022/09/16/how-feakin-works/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Feakin Org.">
+      <meta itemprop="description" content="Modernize graph assets management, based on Diagram-as-code, so you can create, share and edit diagram. Support for import Mermaid, PlantUML, Excalidraw, Dot and more.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Feakin - Blog">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/09/16/how-feakin-works/" class="post-title-link" itemprop="url">Feakin 是如何设计与构建的？</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-09-16 22:50:00 / Modified: 14:51:11" itemprop="dateCreated datePublished" datetime="2022-09-16T22:50:00+00:00">2022-09-16</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>高中，读过几本 3D 图形编程相关的书。怎么说呢，自那以后，图形学相关的东西，都不在我的兴趣范围里了。直到最近，我重新燃起了一点兴趣：</p>
+<ul>
+<li>架构治理工具 <a target="_blank" rel="noopener" href="https://github.com/archguard/archguard">ArchGuard</a> 依赖于「<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/diagram-as-code/">图即代码</a>」，用于生成架构图，以更好的进行架构治理。</li>
+<li>年初，开源的知识管理工具 <a target="_blank" rel="noopener" href="https://github.com/phodal/quake/">Quake</a> 中，需要支持「<strong>概念构建系统</strong>」这样一个理念。</li>
+<li>需要管理多种不同的图形格式。</li>
+</ul>
+<p>欢迎尝试在线 Demo：<a target="_blank" rel="noopener" href="https://online.feakin.com/">https://online.feakin.com/</a> ， GitHub：<a target="_blank" rel="noopener" href="https://github.com/feakin/feakin/">https://github.com/feakin/feakin/</a>，当然了 Bug 超级多。</p>
+<h2 id="引子：开源绘图工具实现的浅析"><a href="#引子：开源绘图工具实现的浅析" class="headerlink" title="引子：开源绘图工具实现的浅析"></a>引子：开源绘图工具实现的浅析</h2><p>在设计 Feakin 的时候，参考了一些几个常用的图形工具。分析了它们的大致实现，以及部分的源码：</p>
+<p><strong>Graphviz</strong></p>
+<p>AT&amp;A 实验室的作品，作为最古老的图形即代码的工具，它还提供了一个<strong>图形描述语言</strong>：Dot，可以直接将代码转换为图形。它的生态体系足够的完善，所以你在哪都能看到它的影子。</p>
+<p><strong>Mermaid</strong></p>
+<p>同样也是一个图形即代码的工具，使用的是纯 JavaScript 实现，从语法解析到图形渲染。Mermaid 使用 Jison 作为解析器，然后将其转换为不同的图模型，如流、时序等，再使用 graphlib、dargre 进行布局，最后使用 dagre-d3、d3 进行渲染。因此，在 Mermaid 里有三个核心要素：语法解析、图形布局、图形渲染。而，Mermaid 不存在一个图形模型，也变成了一个神奇的存在。</p>
+<p><strong>Cytoscape</strong></p>
+<p>第一次看到这个图形引擎的时候，是看到 ArchGuard 前人留下的一个功能：<strong>布局算法切换</strong>。所以，在源码实现上，Cytoscape 提供了这种算法上的扩展性，具体可以看<a target="_blank" rel="noopener" href="https://js.cytoscape.org/">官方网站</a>。布局上的抽象，提供了更好的可扩展性 —— 我们就可以参考它的实现了。在它的图形模型里，Node（节点） 和 Edge（边） 从形式上都算是 Element，然后在渲染时根据图形类型展开。于是在渲染时，直接采用 HTML5 里的 Canvas 进行绘制即可。</p>
+<p><strong>Excalidraw</strong></p>
+<p>对我来说，其最有意思的是引入了<strong>射影几何</strong>，来进行节点变化时的，自动 Edge 跟踪；即当 A 从 B 的左边移动到右边时，对应的线自动连接到 B 右边的边上。当然了，其中的各种神奇算法，我也没看懂。对于其他人，可能就是使用 roughjs 来生成手绘风格的图。当然了， 就目前的代码实现来说，roughjs 在 renderElement 里过度的耦合，图形模型也耦合在其中。</p>
+<p><strong>MaxGraph</strong></p>
+<p>MaxGraph 是 Draw.io 底层的 mxGraph 的 TypeScript 实现，最开始研究时，是为了导入 Draw.io 生成的图。从模型上来说，MaxGraph 应该是几个工具里做得最好的，包含一系列的可参考的 Shape、Edge 等等。其次，也提供了 AbstractCanvas2D 这样的实现，虽然它没有实现真正的 HTML5 Canvas2D，但是抽象接口已经非常像了，诸如 <code>.moveTo</code>、<code>.lineTo</code> 等。可能它就提供 SVG 和 XML，前者用于网页渲染，后者用于导出。</p>
+<p>所以，从上述的几个工具里，我们就能得到一个绘图工具底层的基本要素：</p>
+<ul>
+<li>图形模型。即对图形建模，理清 Diagram&#x2F;Graph、Node、Edge、Shape、Element 之间的关系，并包含基本的图形表示关系。</li>
+<li>图形绘制。即定义如何对图形进行绘制&#x2F;渲染，如采用 SVG、Canvas 等不同的形式。</li>
+</ul>
+<p>为了丰富这些功能：</p>
+<ul>
+<li>布局算法。提供自动化的布局方式，如 Cytoscape 这一类自动计算的方式。</li>
+<li>语法解析。诸如于为了支持图即代码（即 DSL）的形式来提供快捷的绘制方式。</li>
+<li>自动连线。即如 Excalidraw、Draw.io 中提供的功能，两者实现的方式完全不一样。</li>
+<li>图形风格。诸如于 Excalidraw 提供的手绘图形的功能。</li>
+<li>图形库。这也是 Drawio 最受欢迎的地方，也是 Excalidraw 一个很有意思的功能。</li>
+<li>等等</li>
+</ul>
+<p>结合这些功能，我们就可以造出一些有意思的东西，比如 Feakin 中的二阶段渲染。</p>
+<h2 id="Step-1：实现第一个概念证明"><a href="#Step-1：实现第一个概念证明" class="headerlink" title="Step 1：实现第一个概念证明"></a>Step 1：实现第一个概念证明</h2><p>为了 Feakin 能进行下去，我们所要做的就是快速实现一个 PoC（概念证明）。在这个 PoC 里，主要实现如下的功能：</p>
+<ul>
+<li>DSL （领域特定语言）解析。</li>
+<li>图形模型生成。</li>
+<li>图形绘制。</li>
+</ul>
+<p>如下图所示：</p>
+<p> <img src="/processor/blog/images?file_name=2022-08-27T07:57:34.024Z.png"></p>
+<p>这样一来，我们就有一个「It works」了。</p>
+<h3 id="从图形引擎的误区中出来"><a href="#从图形引擎的误区中出来" class="headerlink" title="从图形引擎的误区中出来"></a>从图形引擎的误区中出来</h3><p>在实现第一个 PoC 的时候，遇到的第一个困难是技术选型，到底是：SVG 还是 Canvas？SVG 可以方便于我们进行 TDD（测试驱动开发），只要所有的测试是通过的，理论上结果就是过的。但是，如我们所看到的那样，SVG 容易遇到性能瓶颈。Canvas 提供自由的绘制 API，测试时依赖于快照测试（snapshot），不易于编写测试。所以，结论就是：我们都要了吧。只需要像 MaxGraph 提供一个抽象图形接口，我们就能实现对于两种模式的支持。</p>
+<p>随后，发现这样是不合理的，只在 PoC 阶段，并且没有经验的情况下，做一个 AbstractCanvas 还是存在很高的成本。于是乎，需要寻找一个合理的绘制引擎，诸如于 Raphaël、Fabric、Konva 等。最后，选择了 Konva，因为它支持了 React 框架。正所谓，<strong>工作用 Angular 心不累，业余用 React 放我自我</strong>。</p>
+<h3 id="原型：语法解析-图形模型-图形绘制"><a href="#原型：语法解析-图形模型-图形绘制" class="headerlink" title="原型：语法解析-图形模型-图形绘制"></a>原型：语法解析-图形模型-图形绘制</h3><p>在构建了基本的图形领域的相关知识之后，要构建出一个绘图工具并不困难。</p>
+<ul>
+<li>参考（复制） Mermaid 的语法解析。将通过 parser 解析类似于 Graphviz、Mermaid 设计的语法，将其转换为图形模型。</li>
+<li>引入  Dagre.js 作为图形布局引擎。通过 Dagre.js 来计算布局，返回我们所需要的图形模型。</li>
+<li>使用 React Konva 进行渲染。将图形模型匹配到 Konva 中的图形，如 RectangleShap 对应于 <code>&lt;Rect&gt;</code> 组件、Edge 对应于 <code>&lt;Line&gt;</code>、 <code>&lt;Arrow&gt;</code>等。</li>
+</ul>
+<p>过程中，遇到的一个比较坑的点是：Lerna + Nx.js 管理 monorepo。React + Craco 的组合、风格各异的代码库，带来了持续失败的 CI，还好 GitHub Action 不会统计失败率。持续集成不来点失败，怎么能发挥它的用处呢。</p>
+<h2 id="Step-2：对模型进行反复重构（持续）"><a href="#Step-2：对模型进行反复重构（持续）" class="headerlink" title="Step 2：对模型进行反复重构（持续）"></a>Step 2：对模型进行反复重构（持续）</h2><p>在 Poc 里，我们需要遇到不同的模型转换：</p>
+<ul>
+<li>解析器获得的模型。包含节点的信息，以及节点的关系（诸如于 A 到 B、A 依赖于 B 等）。</li>
+<li>布局引擎生成的模型。通常来说，只是补充一下模型里的层次关系（children&#x2F;parent）、坐标信息（x、y）、几何信息（width、height）等。</li>
+<li>图形绘制引擎的模型。我们需要将上述的信息，再次转换到 Konva 的模型中。而其中会存在一些差距，比如 Konva 使用 Polygon（多边型）来表示Triangle（三角型）、Diamond（菱形）等。</li>
+</ul>
+<p>所以，如何设计一个有用的模型，成为了个有意思的问题。</p>
+<h3 id="GIM：图中间模型"><a href="#GIM：图中间模型" class="headerlink" title="GIM：图中间模型"></a>GIM：图中间模型</h3><p>在那一篇《<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/abstract-graph/">图的抽象：概念与模型的构建</a>》中，我们介绍了从认知语义学的角度，如何仅凭基本的概念，设计出可用的模型？不过，这样的模型是未经验证的。那么，什么样的模型是经常验证的呢？自然是开源社区中，已经充分使用的代码模型。虽然说，各个模型受限于自己的场景，与其他软件的模型存在一定的差距。但是呢，在基本的核心概念<strong>图的表示</strong>上，它们是大差不差的。于是乎，我们有了一个 GIM（Graph Intermedia Model），图中间模型。</p>
+<p>这个图模型的来源是源自其他图形工具成熟的模型，如下图所示：</p>
+<p> <img src="/processor/blog/images?file_name=2022-08-27T03:37:39.376Z.png"></p>
+<p>所以，在持续的建模、提炼之后，我们可以轻松地进行我们的图模型转换。在有了 TDD 的加持之后，这个过程就更加地简单了。</p>
+<p>在模型这一点上，Feakin 的设计初衷与 ArchGuard 底层的 <a target="_blank" rel="noopener" href="https://github.com/modernizing/chapi">Chapi</a> （<a target="_blank" rel="noopener" href="https://github.com/modernizing/chapi">https://github.com/modernizing/chapi</a>） 语言模型的想法是一致的。而这种所谓的通用模型会遇到的问题是，需要抛弃一些细节，诸如于只实现 80% 的核心功能。</p>
+<h3 id="图的模型"><a href="#图的模型" class="headerlink" title="图的模型"></a>图的模型</h3><p>对于一个图（Graph）来说，它的模型也就变得相当的简单：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">export</span> <span class="keyword">interface</span> <span class="title class_">Graph</span> &#123;</span><br><span class="line">  <span class="attr">nodes</span>: <span class="title class_">Node</span>[];</span><br><span class="line">  <span class="attr">edges</span>: <span class="title class_">Edge</span>[];</span><br><span class="line">  props?: <span class="title class_">GraphProperty</span>;</span><br><span class="line">  subgraphs?: <span class="title class_">Graph</span>[];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>围绕于这四个核心元素再往下展开：</p>
+<ul>
+<li>节点（Node）。主要包含坐标信息，形态信息等，可以用于构建出不同的 shape。</li>
+<li>边（Edge）。主要包含点（Point），可以用于构建普通的直线、贝塞尔曲线（Bézier）曲线等，还有</li>
+<li>属性（Props）。这里只属于命名为 props 是为了对齐 🐶 ，对应于图形属性，诸如于 fillColor、color、strokeColor 等。</li>
+<li>子图（Graph[]）。一个抽象的概念，在不同的图示中有不同的形式，如 Group、子集等。</li>
+</ul>
+<p>而如上所述 Shape 和 Edge 就是两个大家庭，包含了一系列的子类，诸如于 Shape 包含了 PolygonShape（又包含了 TriangleShape、DiamondShape、RectangleShape 、HexagonShape）。</p>
+<h3 id="状态与属性（TBD）"><a href="#状态与属性（TBD）" class="headerlink" title="状态与属性（TBD）"></a>状态与属性（TBD）</h3><p>对于属性来主，尚未进一步展开，但是初步分为：FillState、FontState、StrokeState、ImageState 等。</p>
+<p>如果你也感兴趣的话，欢迎一起来设计。</p>
+<h2 id="Step-3：核心特性基础：二阶段绘图"><a href="#Step-3：核心特性基础：二阶段绘图" class="headerlink" title="Step 3：核心特性基础：二阶段绘图"></a>Step 3：核心特性基础：二阶段绘图</h2><p>在反复的设计了各种 Importer&#x2F;Exporter 之后，并持续不断的进行模型重构之后，就构成了的核心特性的基础：二阶段绘图。简单来说，就是把绘图分为了两阶段：</p>
+<ul>
+<li>通过 DSL 生成图或者导入生成图。</li>
+<li>使用图形工具对生成的图进行编辑。</li>
+</ul>
+<p>以在不同的工具之间转换，并实现图的互转。</p>
+<h3 id="二阶段绘图示例"><a href="#二阶段绘图示例" class="headerlink" title="二阶段绘图示例"></a>二阶段绘图示例</h3><p>在这里就可以尝试使用：<a target="_blank" rel="noopener" href="https://online.feakin.com/">https://online.feakin.com/</a> ，虽然还只是一个早期的版本，仍旧还有一系列的 bug，但是还可以尝试的。</p>
+<p> <img src="/processor/blog/images?file_name=2022-08-27T08:04:50.237Z.png"></p>
+<p>如上图所示，我们可以</p>
+<ol>
+<li>通过 File → Import 导入 Draw.io 或者 Excalidraw，又或者是通过 Graphviz 的 Dot 语法编写。</li>
+<li>通过 Export 导出到 Draw.io 或者是 Excalidraw</li>
+</ol>
+<p>图中，左边的编辑器是使用 Monaco Editor，配合了简单的 Dot 语法支持；右边则是一个早期版本的 Feakin Render，只能简单地渲染一下，看看效果。当前，仅支持简单的拖拉拽，还容易出错。</p>
+<h3 id="决策：过程一致或者结果一致？"><a href="#决策：过程一致或者结果一致？" class="headerlink" title="决策：过程一致或者结果一致？"></a>决策：过程一致或者结果一致？</h3><p>在这个过程中，还有一系列有意思的东西，比如 Shape 在不同的图形工具是不一样的。先让我们看个代码示例：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">digraph G &#123;</span><br><span class="line">  a [shape=<span class="string">&quot;triangle&quot;</span>];</span><br><span class="line">  b [shape=<span class="string">&quot;diamond&quot;</span>];</span><br><span class="line">  a -&gt; b;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也是截图中的代码简化，节点 a 的 shape 是一个 Triangle（三角形），然而：</p>
+<ul>
+<li>在 Excalidraw 中不存在三角形，需要自己用 Line 绘制一个。</li>
+<li>在 Draw.io 中默认的 Triangle 和正确的三角形不一样，正确的类似应该是<code>mxgraph.basic.acute_triangle</code> 。</li>
+</ul>
+<p>于是乎，为了结果上的一致，我们需要在对应的 ExcalidrawExporter、DrawioExporter 进行对应的 Shape 的处理和 Mapping。</p>
+<h2 id="Step-4：从-MVP-到真实世界"><a href="#Step-4：从-MVP-到真实世界" class="headerlink" title="Step 4：从 MVP 到真实世界"></a>Step 4：从 MVP 到真实世界</h2><p>在这个 MVP（最小可行性产品）里，我们所构建的只是一个可以工作的原型，依旧有一系列的工作要完成。诸如于：</p>
+<p><strong>更丰富的图形</strong></p>
+<p>当前只支持基础的图形，在未来，支持其它工具的图形库 —— 有了 GIM，我们就不需要自己设计了。</p>
+<p><strong>图形的属性</strong></p>
+<p>从颜色到边框，一个功能也没有。难点主要在于，如何进行对应的属性抽象。在 MaxGraph 是一个胖模型，这种模型不利于维护，会带来额外的知识负载，它还是按字母顺序排序的，头疼。</p>
+<p><strong>生态兼容性</strong></p>
+<p>诸如于，虽然我们能成功导出 Excalidraw 的图形，也可以实现模型之间的绑定。但是，在一些属性上还是有区别的。</p>
+<p>当然，这也是其中非常有意思的地方 —— 原来你只需要写一份未经验证的代码，现在你要看 N 份。</p>
+<h2 id="下一步：远程多人协作"><a href="#下一步：远程多人协作" class="headerlink" title="下一步：远程多人协作"></a>下一步：远程多人协作</h2><p>既然，我们将代码作为第一等公民，那么实现代码的远程协作，也就是这个工具非常有意思的地方。一提到代码的多人协作，我就想起了我熟知的 Intellij IDEA。作为一个熟悉 Intellij IDEA Community 源码的人，我就联想到了 Fleet 架构里的 <a target="_blank" rel="noopener" href="https://blog.jetbrains.com/zh-hans/fleet/2022/02/fleet-below-deck-part-ii-breaking-down-the-editor/">Rope Architecture Model</a> 与 <a target="_blank" rel="noopener" href="https://blog.jetbrains.com/zh-hans/fleet/2022/06/fleet-below-deck-part-iii-state-management/">State Management</a> 两篇相关文章。大体是关于如何使用 Rope 模型来管理 AST（抽象语法树），以及如何管理多人协作的状态问题。</p>
+<p>除此，之前读过的 Xi Editor，也有关于 Rope 模型也有很好的介绍：<a target="_blank" rel="noopener" href="https://xi-editor.io/docs.html">https://xi-editor.io/docs.html</a>。它提供了一个很好的 Rust 实现，这样一来，我们就可以使用 Rust 来开发 Feakin 的协作部分。</p>
+<p>如果你也有兴趣，欢迎一起来用爱发电。如此一来，也不枉我花三个小时写的这篇文章。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://blog.feakin.com/2022/09/16/graph-abstract/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Feakin Org.">
+      <meta itemprop="description" content="Modernize graph assets management, based on Diagram-as-code, so you can create, share and edit diagram. Support for import Mermaid, PlantUML, Excalidraw, Dot and more.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Feakin - Blog">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/09/16/graph-abstract/" class="post-title-link" itemprop="url">图的抽象：概念与模型的构建</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-09-16 22:48:36 / Modified: 14:51:11" itemprop="dateCreated datePublished" datetime="2022-09-16T22:48:36+00:00">2022-09-16</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>最近的业余时间里，一直在研究图相关的领域，顺便构建出 feakin 图形引擎。在研究了 Mermaid、Cytoscape、Drawio&#x2F;MxGraph&#x2F;MaxGraph、Excalidraw 等图形库之后，大概写了两个 PoC（概念验证）：</p>
+<ul>
+<li>数据的处理。即将文本转换为可渲染的数据模型。即结合语法解析、图算法来对数据进行处理。</li>
+<li>图形的渲染。即基于 Konva.js 的 Canvas 方式来渲染图形。</li>
+</ul>
+<p>在这个过程中，因为研究时间比较分散，一些概念相对比较模糊。所以，便想抽空重新梳理一下其中的思路，方便于后续继续研究。</p>
+<h2 id="什么是图，什么是图表？"><a href="#什么是图，什么是图表？" class="headerlink" title="什么是图，什么是图表？"></a>什么是图，什么是图表？</h2><p>开始之前，我们需要定义一下什么是图（Graph），以及本文所指的图形是什么？我们这里所指的是图是指：</p>
+<blockquote>
+<p>图是计算机科学的一个大主题，可用于抽象表示交通运输系统、人际交往网络和电信网络等。对于训练有素的程序员而言，能够用一种形式来对不同的结构建模是强大的力量之源。 —— Steven S. Skiena《算法设计指南》</p>
+</blockquote>
+<p>简单来说，我们这里所指的图是用来表示网络关系的，通常会采用的是节点（Node）来表示实体，使用线条（Edge）来表示关系。诸如于，我们绘制的流程图，便是这里的图；而我们通常所见的曲线图等，可以划到图表里。当然了，要准确区分两者的定义是一件非常困难的事，诸如于 Echarts、D3.js 这一类的图形库， 可以同时表示两种图和图表。</p>
+<p>也因此，我们这里说里的图，就是提网络及其关系。</p>
+<h2 id="图的模型与概念"><a href="#图的模型与概念" class="headerlink" title="图的模型与概念"></a>图的模型与概念</h2><p>作为一个图领域的新手，在当前的版本里，我构建的模型来源于不同的图形库的实现。而正是这种参考了不同的图形库，使得我对于什么是正确的概念充满了迷惑性。比如，什么是 Geometry（几何），如果从<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-sg/%E5%87%A0%E4%BD%95%E5%AD%A6">维基百科</a>定义上来说，它主要研究形状（shape）、大小（size）、图形的相对位置（position）、距离（distance）等<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E7%A9%BA%E9%96%93">空间</a><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E5%8D%80%E5%9F%9F_(%E6%95%B8%E5%AD%B8)">区域</a>关系以及空间形式的度量。</p>
+<p>而在 maxGraph（MxGraph 的 TypeScript 版本里），Geometry 下包含了节点（Node）和线条（ Edge），在这时可以认为是他们的子类。</p>
+<h3 id="寻找基础的概念：Node-与-Edge"><a href="#寻找基础的概念：Node-与-Edge" class="headerlink" title="寻找基础的概念：Node 与 Edge"></a>寻找基础的概念：Node 与 Edge</h3><p>现在，让我们尝试回到标准的定义之下，如果我们基于标准的 Wikimedia 的定义的话，那么 Graph 是这么呈现的：</p>
+<blockquote>
+<p>In mathematics, and more specifically in graph theory, a graph is a structure amounting to a set of objects in which some pairs of the objects are in some sense “related”. The objects correspond to mathematical abstractions called <strong>vertices</strong> (also called <strong>nodes</strong> or <strong>points</strong>) and each of the related pairs of vertices is called an <strong>edge</strong> (also called <strong>link</strong> or <strong>line</strong>). Typically, a graph is depicted in diagrammatic form as a set of <strong>dots</strong> or <strong>circles</strong> for the vertices, joined by <strong>lines</strong> or <strong>curves</strong> for the edges. Graphs are one of the objects of study in discrete mathematics.</p>
+</blockquote>
+<p>基于它，我们可以构建一个构建出一个基本的图的模型：</p>
+<ul>
+<li>Graph 是一个包含了一系列对象的数据结对，这些对象由表示关系的 Edge（线条）和表示节点的 Node（节点，或者 Vertex，即顶点） 组成。</li>
+<li><strong>Node</strong> 可以用 Dot （点）和 Circle （圆圈）的形状来表示。</li>
+<li><strong>Edge</strong> 可以用 Line （线）和 Curve（曲线）来表示。</li>
+</ul>
+<p>这里的 Dot 和 Circle 可以用 <strong>Shape</strong> 来进行抽象，而 Line 和 Curve 在实例画之后，就是一系列的 <strong>Points</strong>（点）。</p>
+<p>然后，再让我们打开 <strong>Vertex</strong> 的定义：</p>
+<blockquote>
+<p>In a diagram of a graph, a vertex is usually represented by a circle with a label, and an edge is represented by a line or arrow extending from one vertex to another.</p>
+</blockquote>
+<p>在这里，我们又进一步展开了 Node 和 Edge 的定义：</p>
+<ul>
+<li><strong>Node</strong> 通常是带有标签的，这里的标签通常是指文本。</li>
+<li><strong>Edge</strong> 除了 Line ，还可以带有箭头（arrow），即它是有方向性的。</li>
+</ul>
+<p>而如果我们定义的是 Node，那么参考 Node 的定义：</p>
+<blockquote>
+<p>A node is a basic unit of a data structure, such as a linked list or tree data structure. Nodes contain data and also may link to other nodes. Links between nodes are often implemented by pointers. It is a computer connected to the internet that participates in the peer to peer network.</p>
+</blockquote>
+<p>进一步地，因为它是一个树型结构，所以我们需要强化一个 Node 的定义：</p>
+<ul>
+<li>Node 包含 children、parent、depth、degree 等属性。</li>
+</ul>
+<p>综上所述，一个 Node 会包含一系列的属性，一个包含大量属性的模型，显然是不利于我们建模的，我们应该怎么办？</p>
+<h3 id="引入概念降低认识负载：-Geometry"><a href="#引入概念降低认识负载：-Geometry" class="headerlink" title="引入概念降低认识负载： Geometry"></a>引入概念降低认识负载： Geometry</h3><p>为了更好地描述这些属性，我们就可以考虑引入 Geometry，通过<strong>组合的方式</strong>解决这个问题。</p>
+<blockquote>
+<p>It is concerned with properties of space such as the distance, shape, size, and relative position of figures.</p>
+</blockquote>
+<p>对于距离、大小、相对位置，我们比较好理解，而 Shape（形状） 同样也是一个非常有意思的概念。</p>
+<blockquote>
+<p>A <strong>shape</strong> or figure is a graphical representation of an object or its external boundary, outline, or external surface, as opposed to other properties such as color, texture, or material type.</p>
+</blockquote>
+<p>所以 Shape 也需要再次展示，它包含了一些有意思的属性。在我们使用 SVG 或者 Canvas 表示的时候，分别可以对应于：</p>
+<ul>
+<li><strong>Stroke</strong>。如 Width 等。</li>
+<li><strong>Fill</strong>。如 <strong>透明度</strong>（Opacity）等。</li>
+<li><strong>Scale。缩放</strong></li>
+<li>等</li>
+</ul>
+<p>而从定义上，我们会发现颜色、材质等属性，似乎不应该放在 <strong>Shape</strong> 中。那么，我们是否需要一些额外的概念来放置它们呢？或者是直接扔到 Node 中，采用 <strong>Properties</strong>，诸如于 Graph Database 的做法：</p>
+<blockquote>
+<p><strong>Properties</strong> are information associated to nodes.</p>
+</blockquote>
+<p>在这时，就会有 Node <strong>Properties</strong>  和 Edge <strong>Properties</strong>。在构建了基本的模型之后，就可以将模型可视化出来 。</p>
+<h2 id="数据与模型的渲染：Drawing"><a href="#数据与模型的渲染：Drawing" class="headerlink" title="数据与模型的渲染：Drawing"></a>数据与模型的渲染：Drawing</h2><p>当我们拿到了模型及其数据之后，就可以对其进行渲染了，而在 Wiki 中 Rendering 讲述的是 3D 图形的渲染，对应于 2D 则是 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Graph_drawing">Graph Drawing</a>。对于绘制来说，我们关注于两点：</p>
+<ul>
+<li>Layout Strategies。布局策略，即各类不同的布局方式。基于布局方式选择不同的算法。</li>
+<li>Renderer。如基于 SVG、Canvas 等的 Renderer。</li>
+</ul>
+<h3 id="Layout-策略"><a href="#Layout-策略" class="headerlink" title="Layout 策略"></a>Layout 策略</h3><p>关于图算法相关的内容，已经有蛮多的内容可以参考了，也有一系列的代码库可以使用。诸如于：</p>
+<ul>
+<li>Mermaid 采用的是 dagre.js，并使用 dagre-d3 + D3 进行渲染。</li>
+<li>D3.js 也包含了一系列常用的 Layout 策略，如 Force-Layout、Hierarchy-Layout 等。</li>
+<li>Cytoscape.js 也内置了 Breadthfirst、Circle、CoSE 等布局策略，也支持通过扩展的方式来进行。</li>
+</ul>
+<p>而随着 AI 的流行，人们也开始在上面探索机器学习的可能性。</p>
+<h3 id="Renderer"><a href="#Renderer" class="headerlink" title="Renderer"></a>Renderer</h3><p>对于 Renderer 来说，如果我们不加入 Animation 的话，并不存在太复杂的点 —— 只是将数据拿过来，然后在渲染介质上表示出来即可。而如果加上动画的话，就又是一个有意思的问题了 —— 等以后再研究了。</p>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>本文主要是针对于自己编码过程中的理解，重新对建模进行了思考。如果你有相关的经验，欢迎留言~。</p>
+<p>相关的参考内容：</p>
+<ul>
+<li>《图数据库》</li>
+<li>《数据分析之图算法》</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://blog.feakin.com/2022/09/16/hello-feakin/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Feakin Org.">
+      <meta itemprop="description" content="Modernize graph assets management, based on Diagram-as-code, so you can create, share and edit diagram. Support for import Mermaid, PlantUML, Excalidraw, Dot and more.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Feakin - Blog">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/09/16/hello-feakin/" class="post-title-link" itemprop="url">图即代码：以代码化的方式构建新一代图形库 —— Feakin</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-09-16 22:48:36 / Modified: 14:51:11" itemprop="dateCreated datePublished" datetime="2022-09-16T22:48:36+00:00">2022-09-16</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>对于造图形库这个库，我的想法由来已久。然而，直到最近，积压的需求越来越多的时候：</p>
+<ol>
+<li>随着，我们在 ArchGuard 中的架构工作台的进一步深入，需要构建一个架构设计线上化的功能。对于 ArchGuard  平台而言，设计线上化并意味着在线设计架构。在初期，我们想提供的是：架构图的线上化呈现，也就是可以通过代码化架构图的方式，诸如于 Mermaid 就可以提供这样的功能。</li>
+<li>与此同时，在半年前，<a target="_blank" rel="noopener" href="https://github.com/phodal/quake/">Quake 框架</a> 也卡在这样一个可视化的图形库中。如何可视化知识的连接？建立它们的连接？</li>
+<li>在那上一篇文章《<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/mind-graphical/">思维图形化：从表象到概念的浮现过程</a>》中，也需要这样的一个工具，作为它们的载体。然而，现有的工具，在版本化这事上做得可毒啊了。</li>
+</ol>
+<p>于是，在挖坑之前，我开始思索我要构建的是怎样一个图形库。值得庆幸的是：哪怕不存在上述的三个原因，我也打算造一个轮子。当然，之前的重点可能不是可用，现在必须要提供一个可用的轮子。</p>
+<h2 id="图表即代码"><a href="#图表即代码" class="headerlink" title="图表即代码"></a>图表即代码</h2><p>作为一个《<a target="_blank" rel="noopener" href="https://ascode.ink/">万物即代码</a>》（<a target="_blank" rel="noopener" href="https://ascode.ink/">https://ascode.ink/</a>）的先行者，对于图表来说，它的<strong>可版本化管理</strong>依旧是一个痛点。所以，在这个新的工具实现图表即代码，依旧是一个非常有意思的探索点。</p>
+<p>图表即代码（Diagram as Code）是一个已经有一定基础的领域，在我与我的同事们一起构建开源应用 <a target="_blank" rel="noopener" href="https://github.com/phodal/ledge">Ledge</a> 的时候，我们已经大量地采用了这个思想。稍有不同的是，Ledge 的图表即代码偏向于是数据可视化，而我们即将要构建 Feakin 偏向于是概念&#x2F;想法的可视化。但是，这并不影响，我们再次定义一下图表即代码。在先前的《<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/document-as-code/">文档代码化</a>》 中，我们定义的文档代码化是：</p>
+<blockquote>
+<p>文档代码化，将文档以类代码的领域特定语言的方式编写，并借鉴软件开发的方式（如源码管理、部署）进行管理。它可以借助于特定的工具进行编辑、预览、查看，又或者是通过专属的系统部署到服务器上。面向非技术人员的文档代码化的一种常见架构模式是：<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/editing-publishing-coding-seperate/">编辑-发布-开发分离</a>』，</p>
+</blockquote>
+<p>而对于图表即代码来说，它是可以相似的方式来定义的：</p>
+<blockquote>
+<p>图表即代码即将图表以领域特定语言作为载体，围绕于不同的使用场景，转译生成二次产物 —— 如概念图、架构图、软件架构等。</p>
+</blockquote>
+<p>这个定义从某种意义上是围绕于现有的工具而产生的，诸如于：</p>
+<ul>
+<li>可视化架构图。在 <a target="_blank" rel="noopener" href="https://github.com/modernizing/coca">Coca</a> 中，我们使用 Graphviz 来生成软件的依赖关系；在 GitHub 网页上，可以使用 Mermaid 来编写 README.md。</li>
+<li>生成代码。诸如于 PlantUML，利用工具可以从 UML 到代码骨架生成；如 Structurizr DSL，可以让从 C4 模型生成 PlantUML 图，进而生成代码。</li>
+<li>交互的图表。如在 Ledge 中，生成的图形本身是可以调整和交互的。</li>
+</ul>
+<p>对于这样的系统，我想大家都知道如何去设计了。或者说，至少在心底是有个印象。</p>
+<h3 id="领域特定语言描述"><a href="#领域特定语言描述" class="headerlink" title="领域特定语言描述"></a>领域特定语言描述</h3><p>作为代码化的第一要素，它必须是采用 DSL （领域特定语言） 的设计，才能有效地进行代码化。值得注意的是不要畏惧 DSL：采用领域特定语言，并不意味着特别复杂的编译实现，哪怕是 JSON 格式描述，也可以适为一种 DSL。所以，诸如于 Graphviz 中设计的 DOT Language 就非常的简单：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">digraph G &#123;</span><br><span class="line">  a -&gt; b</span><br><span class="line">  b -&gt; c</span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<p>简单的语法，可以生成非常有用的图形。只在我们需要一些额外的配置时，才需要去翻看对应的文档。而如果我们能提供更多的 samples，那么就能降低查看文档的成本，构建更好的开发体验。</p>
+<p>从另外一个层面来说，图形的序列化结果，其实也算得是上一种领域特定语言。诸如于 <code>.excalidraw</code> 的 JSON 形式，<code>.drawio</code> 文件采用的编码后的 mxgraph 的 XML 格式，它们都是图形的一种类型的领域特定语言。</p>
+<h3 id="布局计算：算法生成的关系图"><a href="#布局计算：算法生成的关系图" class="headerlink" title="布局计算：算法生成的关系图"></a>布局计算：算法生成的关系图</h3><p>对于代码生成图形来说，用过 D3.js 或者是 Echart.js 的小伙伴，对于 Dagre、ForceLayout 等一系列的图形自动布局算法不陌生。在这里就不展开了 —— 主要是我也不是算法专家。</p>
+<p>随后，布局的计算依赖于数据 + 模型，对于一个图表既代码的系统来说：</p>
+<ul>
+<li>模型，依赖于 DSL 生成的构建的模型。其中大部分是隐式的模型，如上述 DOT 语言中的 <code>a</code> 和 <code>b</code> 是节点，而 <code>→</code> 是指向关系。</li>
+<li>数据，来源于 DSL 又或者是数据源。如 Graphviz 中来源于 DSL 中的代码，而在支持 import 关系的 DSL 中，则可以通过 DSL 来导入数据。</li>
+</ul>
+<p>当然了，如果能提供一个抽象的算法接口，以接入更多的布局算法，那么就可以大大提高系统的灵活性。在这一点上 <a target="_blank" rel="noopener" href="https://js.cytoscape.org/">Cytoscape.js</a> 就做得挺好的，提供了 ELK、CoSE、Cola、fCoSE 等算法的接入，底层的灵活性会带来更多的可扩展空间。</p>
+<h3 id="二次转译：支持后续活动"><a href="#二次转译：支持后续活动" class="headerlink" title="二次转译：支持后续活动"></a>二次转译：支持后续活动</h3><p>从现实的因素来考虑，并非所有的图表都应该用图表即代码的方式。人们采用图表即代码这种方式，也意味着：基于可视化的结果，进行后续的活动。诸如于：</p>
+<ul>
+<li>采用 Structurizr DSL、PlantUML 来呈现系统的设计，会考虑用它来生成模板代码，并在后续对比实现架构与目标架构的差异。</li>
+<li>采用 Graphviz 来生成系统依赖关系，用它来展示系统中的循环依赖，再通过自动化地方式检测。</li>
+<li>……</li>
+</ul>
+<p>也因此，与其说是图形即代码，不如说图形化只是中间的产物，作为沟通时的信息载体。在这点上，它与<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/ui-design-as-code/">设计即代码</a>颇为相似，DSL 充当的是图形的标准化输出。</p>
+<h3 id="可选的双向绑定：代码-lt-gt-图形"><a href="#可选的双向绑定：代码-lt-gt-图形" class="headerlink" title="可选的双向绑定：代码 &lt; - &gt; 图形"></a>可选的双向绑定：代码 &lt; - &gt; 图形</h3><p>与上述的内容相比，在代码与图形之间提供双向绑定显得非常有意思。代码化可以向程序员提供高效的输入方式，但是正如新手程序不习惯用 Terminal 一样，他们也需要图形化的方式。于是呢，如何在改变图形的同时，更新代码就变得非常有意思了。从结果上来说，图表工具在保存的时候，存储的是数据模型，而模型便是这个双向绑定的基础。如在使用 draw.io 这样的可视化工具时，当我们添加新的矩形、连接时，结果会更新到对应的数据模型中。</p>
+<p>而图形化的编辑呢，存在一些额外的动作（action），如我们在撤销（undo）、重做（redo）的时候，要提供这种模型的重载。这些因素显然会带来一些额外的工作量。</p>
+<h2 id="Feakin：面向概念构造系统"><a href="#Feakin：面向概念构造系统" class="headerlink" title="Feakin：面向概念构造系统"></a>Feakin：面向概念构造系统</h2><p>于是乎，为了在 ArchGuard 和 Quake 中采用，我便在构思如何去设计这样一个图形工具，名为 Feakin —— 为了注册到 GitHub 的组织里：<a target="_blank" rel="noopener" href="https://github.com/feakin/">https://github.com/feakin/</a> 。随后，为了和 fxxk 做一个区分，Logo 是： f(k)</p>
+<p>围绕于如何通过概念来构建系统 —— 即我们如何通过图形来传送想法，是 Feakin 的核心考虑因素。也因此如何<strong>支持层次化</strong>的思维表达，是 Feakin 的一个重点，也因此，诸如于 Echart.js、Ant G6 等面向数据的图形引擎，并不是 Feakin 的同类型产品。Feakin 的同类型工具是：Drawio、Excalidraw、Graphviz、Mermaid 这一类程序员工具箱里的工具。</p>
+<h3 id="Todo-——-图表的抽象模型"><a href="#Todo-——-图表的抽象模型" class="headerlink" title="Todo —— 图表的抽象模型"></a>Todo —— 图表的抽象模型</h3><p>起初，在设计 Feakin 的时候，我只想构建一个 Draw.io 的兼容引擎。于是，构建了一个 PoC：<a target="_blank" rel="noopener" href="https://feakin.github.io/drawio-render-poc/">https://feakin.github.io/drawio-render-poc/</a> 。只是呢：</p>
+<ul>
+<li>Draw.io 的代码是 ES5 时代的核心引擎</li>
+<li>mxgraph 已经不维护了，一个难以维护的遗留系统</li>
+</ul>
+<p>Draw.io 的其中一个可参考的点是 —— 内置了对其它图表库的支持，如 Mermaid、OrgChart 等等。</p>
+<p>所以，如何构建一个图表的抽象模型，并提供它们的转换就非常有必要。</p>
+<h3 id="Todo-——-图表引擎：Feakin-Render"><a href="#Todo-——-图表引擎：Feakin-Render" class="headerlink" title="Todo —— 图表引擎：Feakin Render"></a>Todo —— 图表引擎：Feakin Render</h3><p>随后，在有了模型之后，我们就需要 Render。当前在 PoC 版本里，我们用的是同事建议的：react-konvas，一个基于 Canvas 的工具库。从功能上来说，它似乎能满足当前的需求。</p>
+<p>Demo 地址：<a target="_blank" rel="noopener" href="https://github.com/feakin/diagram-render">https://github.com/feakin/diagram-render</a></p>
+<p>不过呢，我正在慢慢学习不同图表工具的设计，所以进展不是很理想。现在只支持基本的渲染 + 布局接口。</p>
+<h3 id="Todo-——-面向扩展编程"><a href="#Todo-——-面向扩展编程" class="headerlink" title="Todo —— 面向扩展编程"></a>Todo —— 面向扩展编程</h3><p>当然，还只是想想。</p>
+<h3 id="Feakin-总结"><a href="#Feakin-总结" class="headerlink" title="Feakin 总结"></a>Feakin 总结</h3><p>啊，说实话，其实就是只有一个想法 + PoC。</p>
+<h2 id="其它：只差程序员"><a href="#其它：只差程序员" class="headerlink" title="其它：只差程序员"></a>其它：只差程序员</h2><p>对于图形化底层引擎的开发，我算是个新手，如果你也有兴趣，欢迎来加入我们：<a target="_blank" rel="noopener" href="https://github.com/feakin/">https://github.com/feakin/</a> 。</p>
+<p>最后，如何划定一个合理的边界，以让 Feakin 不臃肿就是一个值得深思的问题了。</p>
 
       
     </div>
@@ -281,9 +786,13 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">1</span>
+          <span class="site-state-item-count">4</span>
           <span class="site-state-item-name">posts</span>
         </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">tags</span>
       </div>
   </nav>
 </div>

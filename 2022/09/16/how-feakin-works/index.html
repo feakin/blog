@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.feakin.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="高中，读过几本 3D 图形编程相关的书。怎么说呢，自那以后，图形学相关的东西，都不在我的兴趣范围里了。直到最近，我重新燃起了一点兴趣：  架构治理工具 ArchGuard 依赖于「图即代码」，用于生成架构图，以更好的进行架构治理。 年初，开源的知识管理工具 Quake 中，需要支持「概念构建系统」这样一个理念。 需要管理多种不同的图形格式。  欢迎尝试在线 Demo：https:&#x2F;&#x2F;online.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Feakin 是如何设计与构建的？">
+<meta property="og:url" content="https://blog.feakin.com/2022/09/16/how-feakin-works/index.html">
+<meta property="og:site_name" content="Feakin - Blog">
+<meta property="og:description" content="高中，读过几本 3D 图形编程相关的书。怎么说呢，自那以后，图形学相关的东西，都不在我的兴趣范围里了。直到最近，我重新燃起了一点兴趣：  架构治理工具 ArchGuard 依赖于「图即代码」，用于生成架构图，以更好的进行架构治理。 年初，开源的知识管理工具 Quake 中，需要支持「概念构建系统」这样一个理念。 需要管理多种不同的图形格式。  欢迎尝试在线 Demo：https:&#x2F;&#x2F;online.">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://blog.feakin.com/processor/blog/images?file_name=2022-08-27T07:57:34.024Z.png">
+<meta property="og:image" content="https://blog.feakin.com/processor/blog/images?file_name=2022-08-27T03:37:39.376Z.png">
+<meta property="og:image" content="https://blog.feakin.com/processor/blog/images?file_name=2022-08-27T08:04:50.237Z.png">
+<meta property="article:published_time" content="2022-09-16T22:50:00.000Z">
+<meta property="article:modified_time" content="2022-09-16T14:51:11.561Z">
+<meta property="article:author" content="Feakin Org.">
+<meta property="article:tag" content="Feakin,Graph,Ops">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://blog.feakin.com/processor/blog/images?file_name=2022-08-27T07:57:34.024Z.png">
+
+<link rel="canonical" href="https://blog.feakin.com/2022/09/16/how-feakin-works/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>Feakin 是如何设计与构建的？ | Feakin - Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Feakin - Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">GraphOps</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://blog.feakin.com/2022/09/16/how-feakin-works/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Feakin Org.">
+      <meta itemprop="description" content="Modernize graph assets management, based on Diagram-as-code, so you can create, share and edit diagram. Support for import Mermaid, PlantUML, Excalidraw, Dot and more.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Feakin - Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Feakin 是如何设计与构建的？
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-09-16 22:50:00 / Modified: 14:51:11" itemprop="dateCreated datePublished" datetime="2022-09-16T22:50:00+00:00">2022-09-16</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>高中，读过几本 3D 图形编程相关的书。怎么说呢，自那以后，图形学相关的东西，都不在我的兴趣范围里了。直到最近，我重新燃起了一点兴趣：</p>
+<ul>
+<li>架构治理工具 <a target="_blank" rel="noopener" href="https://github.com/archguard/archguard">ArchGuard</a> 依赖于「<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/diagram-as-code/">图即代码</a>」，用于生成架构图，以更好的进行架构治理。</li>
+<li>年初，开源的知识管理工具 <a target="_blank" rel="noopener" href="https://github.com/phodal/quake/">Quake</a> 中，需要支持「<strong>概念构建系统</strong>」这样一个理念。</li>
+<li>需要管理多种不同的图形格式。</li>
+</ul>
+<p>欢迎尝试在线 Demo：<a target="_blank" rel="noopener" href="https://online.feakin.com/">https://online.feakin.com/</a> ， GitHub：<a target="_blank" rel="noopener" href="https://github.com/feakin/feakin/">https://github.com/feakin/feakin/</a>，当然了 Bug 超级多。</p>
+<h2 id="引子：开源绘图工具实现的浅析"><a href="#引子：开源绘图工具实现的浅析" class="headerlink" title="引子：开源绘图工具实现的浅析"></a>引子：开源绘图工具实现的浅析</h2><p>在设计 Feakin 的时候，参考了一些几个常用的图形工具。分析了它们的大致实现，以及部分的源码：</p>
+<p><strong>Graphviz</strong></p>
+<p>AT&amp;A 实验室的作品，作为最古老的图形即代码的工具，它还提供了一个<strong>图形描述语言</strong>：Dot，可以直接将代码转换为图形。它的生态体系足够的完善，所以你在哪都能看到它的影子。</p>
+<p><strong>Mermaid</strong></p>
+<p>同样也是一个图形即代码的工具，使用的是纯 JavaScript 实现，从语法解析到图形渲染。Mermaid 使用 Jison 作为解析器，然后将其转换为不同的图模型，如流、时序等，再使用 graphlib、dargre 进行布局，最后使用 dagre-d3、d3 进行渲染。因此，在 Mermaid 里有三个核心要素：语法解析、图形布局、图形渲染。而，Mermaid 不存在一个图形模型，也变成了一个神奇的存在。</p>
+<p><strong>Cytoscape</strong></p>
+<p>第一次看到这个图形引擎的时候，是看到 ArchGuard 前人留下的一个功能：<strong>布局算法切换</strong>。所以，在源码实现上，Cytoscape 提供了这种算法上的扩展性，具体可以看<a target="_blank" rel="noopener" href="https://js.cytoscape.org/">官方网站</a>。布局上的抽象，提供了更好的可扩展性 —— 我们就可以参考它的实现了。在它的图形模型里，Node（节点） 和 Edge（边） 从形式上都算是 Element，然后在渲染时根据图形类型展开。于是在渲染时，直接采用 HTML5 里的 Canvas 进行绘制即可。</p>
+<p><strong>Excalidraw</strong></p>
+<p>对我来说，其最有意思的是引入了<strong>射影几何</strong>，来进行节点变化时的，自动 Edge 跟踪；即当 A 从 B 的左边移动到右边时，对应的线自动连接到 B 右边的边上。当然了，其中的各种神奇算法，我也没看懂。对于其他人，可能就是使用 roughjs 来生成手绘风格的图。当然了， 就目前的代码实现来说，roughjs 在 renderElement 里过度的耦合，图形模型也耦合在其中。</p>
+<p><strong>MaxGraph</strong></p>
+<p>MaxGraph 是 Draw.io 底层的 mxGraph 的 TypeScript 实现，最开始研究时，是为了导入 Draw.io 生成的图。从模型上来说，MaxGraph 应该是几个工具里做得最好的，包含一系列的可参考的 Shape、Edge 等等。其次，也提供了 AbstractCanvas2D 这样的实现，虽然它没有实现真正的 HTML5 Canvas2D，但是抽象接口已经非常像了，诸如 <code>.moveTo</code>、<code>.lineTo</code> 等。可能它就提供 SVG 和 XML，前者用于网页渲染，后者用于导出。</p>
+<p>所以，从上述的几个工具里，我们就能得到一个绘图工具底层的基本要素：</p>
+<ul>
+<li>图形模型。即对图形建模，理清 Diagram&#x2F;Graph、Node、Edge、Shape、Element 之间的关系，并包含基本的图形表示关系。</li>
+<li>图形绘制。即定义如何对图形进行绘制&#x2F;渲染，如采用 SVG、Canvas 等不同的形式。</li>
+</ul>
+<p>为了丰富这些功能：</p>
+<ul>
+<li>布局算法。提供自动化的布局方式，如 Cytoscape 这一类自动计算的方式。</li>
+<li>语法解析。诸如于为了支持图即代码（即 DSL）的形式来提供快捷的绘制方式。</li>
+<li>自动连线。即如 Excalidraw、Draw.io 中提供的功能，两者实现的方式完全不一样。</li>
+<li>图形风格。诸如于 Excalidraw 提供的手绘图形的功能。</li>
+<li>图形库。这也是 Drawio 最受欢迎的地方，也是 Excalidraw 一个很有意思的功能。</li>
+<li>等等</li>
+</ul>
+<p>结合这些功能，我们就可以造出一些有意思的东西，比如 Feakin 中的二阶段渲染。</p>
+<h2 id="Step-1：实现第一个概念证明"><a href="#Step-1：实现第一个概念证明" class="headerlink" title="Step 1：实现第一个概念证明"></a>Step 1：实现第一个概念证明</h2><p>为了 Feakin 能进行下去，我们所要做的就是快速实现一个 PoC（概念证明）。在这个 PoC 里，主要实现如下的功能：</p>
+<ul>
+<li>DSL （领域特定语言）解析。</li>
+<li>图形模型生成。</li>
+<li>图形绘制。</li>
+</ul>
+<p>如下图所示：</p>
+<p> <img src="/processor/blog/images?file_name=2022-08-27T07:57:34.024Z.png"></p>
+<p>这样一来，我们就有一个「It works」了。</p>
+<h3 id="从图形引擎的误区中出来"><a href="#从图形引擎的误区中出来" class="headerlink" title="从图形引擎的误区中出来"></a>从图形引擎的误区中出来</h3><p>在实现第一个 PoC 的时候，遇到的第一个困难是技术选型，到底是：SVG 还是 Canvas？SVG 可以方便于我们进行 TDD（测试驱动开发），只要所有的测试是通过的，理论上结果就是过的。但是，如我们所看到的那样，SVG 容易遇到性能瓶颈。Canvas 提供自由的绘制 API，测试时依赖于快照测试（snapshot），不易于编写测试。所以，结论就是：我们都要了吧。只需要像 MaxGraph 提供一个抽象图形接口，我们就能实现对于两种模式的支持。</p>
+<p>随后，发现这样是不合理的，只在 PoC 阶段，并且没有经验的情况下，做一个 AbstractCanvas 还是存在很高的成本。于是乎，需要寻找一个合理的绘制引擎，诸如于 Raphaël、Fabric、Konva 等。最后，选择了 Konva，因为它支持了 React 框架。正所谓，<strong>工作用 Angular 心不累，业余用 React 放我自我</strong>。</p>
+<h3 id="原型：语法解析-图形模型-图形绘制"><a href="#原型：语法解析-图形模型-图形绘制" class="headerlink" title="原型：语法解析-图形模型-图形绘制"></a>原型：语法解析-图形模型-图形绘制</h3><p>在构建了基本的图形领域的相关知识之后，要构建出一个绘图工具并不困难。</p>
+<ul>
+<li>参考（复制） Mermaid 的语法解析。将通过 parser 解析类似于 Graphviz、Mermaid 设计的语法，将其转换为图形模型。</li>
+<li>引入  Dagre.js 作为图形布局引擎。通过 Dagre.js 来计算布局，返回我们所需要的图形模型。</li>
+<li>使用 React Konva 进行渲染。将图形模型匹配到 Konva 中的图形，如 RectangleShap 对应于 <code>&lt;Rect&gt;</code> 组件、Edge 对应于 <code>&lt;Line&gt;</code>、 <code>&lt;Arrow&gt;</code>等。</li>
+</ul>
+<p>过程中，遇到的一个比较坑的点是：Lerna + Nx.js 管理 monorepo。React + Craco 的组合、风格各异的代码库，带来了持续失败的 CI，还好 GitHub Action 不会统计失败率。持续集成不来点失败，怎么能发挥它的用处呢。</p>
+<h2 id="Step-2：对模型进行反复重构（持续）"><a href="#Step-2：对模型进行反复重构（持续）" class="headerlink" title="Step 2：对模型进行反复重构（持续）"></a>Step 2：对模型进行反复重构（持续）</h2><p>在 Poc 里，我们需要遇到不同的模型转换：</p>
+<ul>
+<li>解析器获得的模型。包含节点的信息，以及节点的关系（诸如于 A 到 B、A 依赖于 B 等）。</li>
+<li>布局引擎生成的模型。通常来说，只是补充一下模型里的层次关系（children&#x2F;parent）、坐标信息（x、y）、几何信息（width、height）等。</li>
+<li>图形绘制引擎的模型。我们需要将上述的信息，再次转换到 Konva 的模型中。而其中会存在一些差距，比如 Konva 使用 Polygon（多边型）来表示Triangle（三角型）、Diamond（菱形）等。</li>
+</ul>
+<p>所以，如何设计一个有用的模型，成为了个有意思的问题。</p>
+<h3 id="GIM：图中间模型"><a href="#GIM：图中间模型" class="headerlink" title="GIM：图中间模型"></a>GIM：图中间模型</h3><p>在那一篇《<a target="_blank" rel="noopener" href="https://www.phodal.com/blog/abstract-graph/">图的抽象：概念与模型的构建</a>》中，我们介绍了从认知语义学的角度，如何仅凭基本的概念，设计出可用的模型？不过，这样的模型是未经验证的。那么，什么样的模型是经常验证的呢？自然是开源社区中，已经充分使用的代码模型。虽然说，各个模型受限于自己的场景，与其他软件的模型存在一定的差距。但是呢，在基本的核心概念<strong>图的表示</strong>上，它们是大差不差的。于是乎，我们有了一个 GIM（Graph Intermedia Model），图中间模型。</p>
+<p>这个图模型的来源是源自其他图形工具成熟的模型，如下图所示：</p>
+<p> <img src="/processor/blog/images?file_name=2022-08-27T03:37:39.376Z.png"></p>
+<p>所以，在持续的建模、提炼之后，我们可以轻松地进行我们的图模型转换。在有了 TDD 的加持之后，这个过程就更加地简单了。</p>
+<p>在模型这一点上，Feakin 的设计初衷与 ArchGuard 底层的 <a target="_blank" rel="noopener" href="https://github.com/modernizing/chapi">Chapi</a> （<a target="_blank" rel="noopener" href="https://github.com/modernizing/chapi">https://github.com/modernizing/chapi</a>） 语言模型的想法是一致的。而这种所谓的通用模型会遇到的问题是，需要抛弃一些细节，诸如于只实现 80% 的核心功能。</p>
+<h3 id="图的模型"><a href="#图的模型" class="headerlink" title="图的模型"></a>图的模型</h3><p>对于一个图（Graph）来说，它的模型也就变得相当的简单：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">export</span> <span class="keyword">interface</span> <span class="title class_">Graph</span> &#123;</span><br><span class="line">  <span class="attr">nodes</span>: <span class="title class_">Node</span>[];</span><br><span class="line">  <span class="attr">edges</span>: <span class="title class_">Edge</span>[];</span><br><span class="line">  props?: <span class="title class_">GraphProperty</span>;</span><br><span class="line">  subgraphs?: <span class="title class_">Graph</span>[];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>围绕于这四个核心元素再往下展开：</p>
+<ul>
+<li>节点（Node）。主要包含坐标信息，形态信息等，可以用于构建出不同的 shape。</li>
+<li>边（Edge）。主要包含点（Point），可以用于构建普通的直线、贝塞尔曲线（Bézier）曲线等，还有</li>
+<li>属性（Props）。这里只属于命名为 props 是为了对齐 🐶 ，对应于图形属性，诸如于 fillColor、color、strokeColor 等。</li>
+<li>子图（Graph[]）。一个抽象的概念，在不同的图示中有不同的形式，如 Group、子集等。</li>
+</ul>
+<p>而如上所述 Shape 和 Edge 就是两个大家庭，包含了一系列的子类，诸如于 Shape 包含了 PolygonShape（又包含了 TriangleShape、DiamondShape、RectangleShape 、HexagonShape）。</p>
+<h3 id="状态与属性（TBD）"><a href="#状态与属性（TBD）" class="headerlink" title="状态与属性（TBD）"></a>状态与属性（TBD）</h3><p>对于属性来主，尚未进一步展开，但是初步分为：FillState、FontState、StrokeState、ImageState 等。</p>
+<p>如果你也感兴趣的话，欢迎一起来设计。</p>
+<h2 id="Step-3：核心特性基础：二阶段绘图"><a href="#Step-3：核心特性基础：二阶段绘图" class="headerlink" title="Step 3：核心特性基础：二阶段绘图"></a>Step 3：核心特性基础：二阶段绘图</h2><p>在反复的设计了各种 Importer&#x2F;Exporter 之后，并持续不断的进行模型重构之后，就构成了的核心特性的基础：二阶段绘图。简单来说，就是把绘图分为了两阶段：</p>
+<ul>
+<li>通过 DSL 生成图或者导入生成图。</li>
+<li>使用图形工具对生成的图进行编辑。</li>
+</ul>
+<p>以在不同的工具之间转换，并实现图的互转。</p>
+<h3 id="二阶段绘图示例"><a href="#二阶段绘图示例" class="headerlink" title="二阶段绘图示例"></a>二阶段绘图示例</h3><p>在这里就可以尝试使用：<a target="_blank" rel="noopener" href="https://online.feakin.com/">https://online.feakin.com/</a> ，虽然还只是一个早期的版本，仍旧还有一系列的 bug，但是还可以尝试的。</p>
+<p> <img src="/processor/blog/images?file_name=2022-08-27T08:04:50.237Z.png"></p>
+<p>如上图所示，我们可以</p>
+<ol>
+<li>通过 File → Import 导入 Draw.io 或者 Excalidraw，又或者是通过 Graphviz 的 Dot 语法编写。</li>
+<li>通过 Export 导出到 Draw.io 或者是 Excalidraw</li>
+</ol>
+<p>图中，左边的编辑器是使用 Monaco Editor，配合了简单的 Dot 语法支持；右边则是一个早期版本的 Feakin Render，只能简单地渲染一下，看看效果。当前，仅支持简单的拖拉拽，还容易出错。</p>
+<h3 id="决策：过程一致或者结果一致？"><a href="#决策：过程一致或者结果一致？" class="headerlink" title="决策：过程一致或者结果一致？"></a>决策：过程一致或者结果一致？</h3><p>在这个过程中，还有一系列有意思的东西，比如 Shape 在不同的图形工具是不一样的。先让我们看个代码示例：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">digraph G &#123;</span><br><span class="line">  a [shape=<span class="string">&quot;triangle&quot;</span>];</span><br><span class="line">  b [shape=<span class="string">&quot;diamond&quot;</span>];</span><br><span class="line">  a -&gt; b;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也是截图中的代码简化，节点 a 的 shape 是一个 Triangle（三角形），然而：</p>
+<ul>
+<li>在 Excalidraw 中不存在三角形，需要自己用 Line 绘制一个。</li>
+<li>在 Draw.io 中默认的 Triangle 和正确的三角形不一样，正确的类似应该是<code>mxgraph.basic.acute_triangle</code> 。</li>
+</ul>
+<p>于是乎，为了结果上的一致，我们需要在对应的 ExcalidrawExporter、DrawioExporter 进行对应的 Shape 的处理和 Mapping。</p>
+<h2 id="Step-4：从-MVP-到真实世界"><a href="#Step-4：从-MVP-到真实世界" class="headerlink" title="Step 4：从 MVP 到真实世界"></a>Step 4：从 MVP 到真实世界</h2><p>在这个 MVP（最小可行性产品）里，我们所构建的只是一个可以工作的原型，依旧有一系列的工作要完成。诸如于：</p>
+<p><strong>更丰富的图形</strong></p>
+<p>当前只支持基础的图形，在未来，支持其它工具的图形库 —— 有了 GIM，我们就不需要自己设计了。</p>
+<p><strong>图形的属性</strong></p>
+<p>从颜色到边框，一个功能也没有。难点主要在于，如何进行对应的属性抽象。在 MaxGraph 是一个胖模型，这种模型不利于维护，会带来额外的知识负载，它还是按字母顺序排序的，头疼。</p>
+<p><strong>生态兼容性</strong></p>
+<p>诸如于，虽然我们能成功导出 Excalidraw 的图形，也可以实现模型之间的绑定。但是，在一些属性上还是有区别的。</p>
+<p>当然，这也是其中非常有意思的地方 —— 原来你只需要写一份未经验证的代码，现在你要看 N 份。</p>
+<h2 id="下一步：远程多人协作"><a href="#下一步：远程多人协作" class="headerlink" title="下一步：远程多人协作"></a>下一步：远程多人协作</h2><p>既然，我们将代码作为第一等公民，那么实现代码的远程协作，也就是这个工具非常有意思的地方。一提到代码的多人协作，我就想起了我熟知的 Intellij IDEA。作为一个熟悉 Intellij IDEA Community 源码的人，我就联想到了 Fleet 架构里的 <a target="_blank" rel="noopener" href="https://blog.jetbrains.com/zh-hans/fleet/2022/02/fleet-below-deck-part-ii-breaking-down-the-editor/">Rope Architecture Model</a> 与 <a target="_blank" rel="noopener" href="https://blog.jetbrains.com/zh-hans/fleet/2022/06/fleet-below-deck-part-iii-state-management/">State Management</a> 两篇相关文章。大体是关于如何使用 Rope 模型来管理 AST（抽象语法树），以及如何管理多人协作的状态问题。</p>
+<p>除此，之前读过的 Xi Editor，也有关于 Rope 模型也有很好的介绍：<a target="_blank" rel="noopener" href="https://xi-editor.io/docs.html">https://xi-editor.io/docs.html</a>。它提供了一个很好的 Rust 实现，这样一来，我们就可以使用 Rust 来开发 Feakin 的协作部分。</p>
+<p>如果你也有兴趣，欢迎一起来用爱发电。如此一来，也不枉我花三个小时写的这篇文章。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/16/graph-abstract/" rel="prev" title="图的抽象：概念与模型的构建">
+      <i class="fa fa-chevron-left"></i> 图的抽象：概念与模型的构建
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/16/crdt-with-graph/" rel="next" title="CRDT 在 Feakin 中的应用">
+      CRDT 在 Feakin 中的应用 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%95%E5%AD%90%EF%BC%9A%E5%BC%80%E6%BA%90%E7%BB%98%E5%9B%BE%E5%B7%A5%E5%85%B7%E5%AE%9E%E7%8E%B0%E7%9A%84%E6%B5%85%E6%9E%90"><span class="nav-number">1.</span> <span class="nav-text">引子：开源绘图工具实现的浅析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Step-1%EF%BC%9A%E5%AE%9E%E7%8E%B0%E7%AC%AC%E4%B8%80%E4%B8%AA%E6%A6%82%E5%BF%B5%E8%AF%81%E6%98%8E"><span class="nav-number">2.</span> <span class="nav-text">Step 1：实现第一个概念证明</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BB%8E%E5%9B%BE%E5%BD%A2%E5%BC%95%E6%93%8E%E7%9A%84%E8%AF%AF%E5%8C%BA%E4%B8%AD%E5%87%BA%E6%9D%A5"><span class="nav-number">2.1.</span> <span class="nav-text">从图形引擎的误区中出来</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8E%9F%E5%9E%8B%EF%BC%9A%E8%AF%AD%E6%B3%95%E8%A7%A3%E6%9E%90-%E5%9B%BE%E5%BD%A2%E6%A8%A1%E5%9E%8B-%E5%9B%BE%E5%BD%A2%E7%BB%98%E5%88%B6"><span class="nav-number">2.2.</span> <span class="nav-text">原型：语法解析-图形模型-图形绘制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Step-2%EF%BC%9A%E5%AF%B9%E6%A8%A1%E5%9E%8B%E8%BF%9B%E8%A1%8C%E5%8F%8D%E5%A4%8D%E9%87%8D%E6%9E%84%EF%BC%88%E6%8C%81%E7%BB%AD%EF%BC%89"><span class="nav-number">3.</span> <span class="nav-text">Step 2：对模型进行反复重构（持续）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GIM%EF%BC%9A%E5%9B%BE%E4%B8%AD%E9%97%B4%E6%A8%A1%E5%9E%8B"><span class="nav-number">3.1.</span> <span class="nav-text">GIM：图中间模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9B%BE%E7%9A%84%E6%A8%A1%E5%9E%8B"><span class="nav-number">3.2.</span> <span class="nav-text">图的模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%8A%B6%E6%80%81%E4%B8%8E%E5%B1%9E%E6%80%A7%EF%BC%88TBD%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">状态与属性（TBD）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Step-3%EF%BC%9A%E6%A0%B8%E5%BF%83%E7%89%B9%E6%80%A7%E5%9F%BA%E7%A1%80%EF%BC%9A%E4%BA%8C%E9%98%B6%E6%AE%B5%E7%BB%98%E5%9B%BE"><span class="nav-number">4.</span> <span class="nav-text">Step 3：核心特性基础：二阶段绘图</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8C%E9%98%B6%E6%AE%B5%E7%BB%98%E5%9B%BE%E7%A4%BA%E4%BE%8B"><span class="nav-number">4.1.</span> <span class="nav-text">二阶段绘图示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%B3%E7%AD%96%EF%BC%9A%E8%BF%87%E7%A8%8B%E4%B8%80%E8%87%B4%E6%88%96%E8%80%85%E7%BB%93%E6%9E%9C%E4%B8%80%E8%87%B4%EF%BC%9F"><span class="nav-number">4.2.</span> <span class="nav-text">决策：过程一致或者结果一致？</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Step-4%EF%BC%9A%E4%BB%8E-MVP-%E5%88%B0%E7%9C%9F%E5%AE%9E%E4%B8%96%E7%95%8C"><span class="nav-number">5.</span> <span class="nav-text">Step 4：从 MVP 到真实世界</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5%EF%BC%9A%E8%BF%9C%E7%A8%8B%E5%A4%9A%E4%BA%BA%E5%8D%8F%E4%BD%9C"><span class="nav-number">6.</span> <span class="nav-text">下一步：远程多人协作</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Feakin Org.</p>
+  <div class="site-description" itemprop="description">Modernize graph assets management, based on Diagram-as-code, so you can create, share and edit diagram. Support for import Mermaid, PlantUML, Excalidraw, Dot and more.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">4</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">tags</span>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Feakin Org.</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
