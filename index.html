@@ -180,7 +180,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2024-11-17 01:41:33" itemprop="dateModified" datetime="2024-11-17T01:41:33+00:00">2024-11-17</time>
+                <time title="Modified: 2025-01-02 23:49:55" itemprop="dateModified" datetime="2025-01-02T23:49:55+00:00">2025-01-02</time>
               </span>
 
           
@@ -224,7 +224,7 @@
 <p>从名称上来说，OT（Operational Transform，操作转换） 主要基于操作的，客户端生成操作，再将由服务端处理，服务端处理完，推给其他客户端。根据不同的场景，可以支持不同的操作，如 CKEditor 中的：Insert、Delete、Split、Merge 等。</p>
 <p>服务端是整个 OT 的核心所在，而客户端在接收到更新的请求后，也需要具备和服务端相同的合并代码。既然如此，那么我们为什么不做成去中心化的呢？</p>
 <p><strong>CRDT</strong></p>
-<p>从名称上来说，(Conflict-Free Replicated data types<strong>，</strong>无冲突复制数据类型) 主要是基于状态的，CRDT 的思路是尽可能避免冲突，如此一来，我们就不需要解决冲突。在发生变更时，就生成 patch，发送到其他端，如服务器、客户端等。当我们使用 CRDT 进行文本协作时，每一个字符视为一个实体。</p>
+<p>从名称上来说，(Conflict-Free Replicated data types**，**无冲突复制数据类型) 主要是基于状态的，CRDT 的思路是尽可能避免冲突，如此一来，我们就不需要解决冲突。在发生变更时，就生成 patch，发送到其他端，如服务器、客户端等。当我们使用 CRDT 进行文本协作时，每一个字符视为一个实体。</p>
 <p>当我们在客户端编辑的时候，可以生成一个 patch，这个 patch 可以由其他端进行 merge，诸如于客户端：<code>self.inner.decode_and_add(&amp;patches)</code>，又或者是客户端的：<code>doc.mergeBytes(bytes)</code>。</p>
 <hr>
 <p>从结论说起， OT 设计起来很简单，实现想来复杂，但是在极端场景下很复杂。而 CRDT 则是在设计阶段很复杂，除非能设计一个理想的<strong>数据模型</strong>，否则在需求不断变化的情况下，模型就成了一个问题。诸如于，针对富文本的属性（attribute）这一点上，与纯文本存在巨大的差异。这也就是富文本与纯代码实现的差异，诸如于如 CKEditor 的作者在「<a target="_blank" rel="noopener" href="https://ckeditor.com/blog/Lessons-learned-from-creating-a-rich-text-editor-with-real-time-collaboration/">Lessons learned from creating a rich-text editor with real-time collaboration</a>)」一文中所说，OT 具有更好的可扩展性 —— 因为不需要更多的预先设计，可以很方便地添加一些操作，诸如于重命名、插件等。</p>
@@ -240,7 +240,7 @@
 <ul>
 <li>基于 Rust 语言的 <a target="_blank" rel="noopener" href="https://github.com/automerge/automerge-rs">Automerge RS</a> 提供了全方面的解决方案：服务器、浏览器端（WASM）、浏览器（JS） 等。</li>
 <li>基于 Rust 语言与 Y.js 成熟经验的 <a target="_blank" rel="noopener" href="https://github.com/y-crdt/y-crdt">Y CRDT</a> 是一个更靠谱的方案。</li>
-<li>基于 Rust 语言但是性能更好的 <strong><a target="_blank" rel="noopener" href="https://github.com/josephg/diamond-types">Diamond-type</a> ，</strong>其作者原来是 Google Wave 开发者，外加 ShareJS、ShareDB 的创始人。</li>
+<li>基于 Rust 语言但是性能更好的 **<a target="_blank" rel="noopener" href="https://github.com/josephg/diamond-types">Diamond-type</a> ，**其作者原来是 Google Wave 开发者，外加 ShareJS、ShareDB 的创始人。</li>
 </ul>
 <p>最后，我们选择的是 <a target="_blank" rel="noopener" href="https://github.com/josephg/diamond-types">Diamond-type</a>，虽然它 API 不完全，可能会带来更多的问题。但是，正经、成熟的方案谁在工作之后用啊。这种特别容易带来 error 的代码库，总会让你去想着，我要再造一个更好的轮子。</p>
 <p>Tips：与采用代码相应的库相比，还有一种作法是通过数据库来解决，诸如于 <a target="_blank" rel="noopener" href="https://github.com/share/sharedb/">ShareDB</a>，不过它当前只支持 OT。在底层内建于对 CRDT 与协作的支持，会降低我们的开发成本。</p>
@@ -335,7 +335,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2024-11-17 01:41:33" itemprop="dateModified" datetime="2024-11-17T01:41:33+00:00">2024-11-17</time>
+                <time title="Modified: 2025-01-02 23:49:55" itemprop="dateModified" datetime="2025-01-02T23:49:55+00:00">2025-01-02</time>
               </span>
 
           
@@ -509,7 +509,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2024-11-17 01:41:33" itemprop="dateModified" datetime="2024-11-17T01:41:33+00:00">2024-11-17</time>
+                <time title="Modified: 2025-01-02 23:49:55" itemprop="dateModified" datetime="2025-01-02T23:49:55+00:00">2025-01-02</time>
               </span>
 
           
@@ -655,7 +655,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2024-11-17 01:41:33" itemprop="dateModified" datetime="2024-11-17T01:41:33+00:00">2024-11-17</time>
+                <time title="Modified: 2025-01-02 23:49:55" itemprop="dateModified" datetime="2025-01-02T23:49:55+00:00">2025-01-02</time>
               </span>
 
           
@@ -842,7 +842,7 @@
 <div class="copyright">
   
   &copy; 
-  <span itemprop="copyrightYear">2024</span>
+  <span itemprop="copyrightYear">2025</span>
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
